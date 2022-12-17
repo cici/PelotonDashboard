@@ -1,3 +1,6 @@
+from plotly.subplots import make_subplots
+from dash.dependencies import Input, Output, State
+from dash import Dash, dcc, html
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
@@ -5,15 +8,21 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import numpy as np
 
-#from csv_generator import generate_csv
+# from csv_generator import generate_csv
 
 pio.renderers.default = "vscode"
 
-from dash import Dash, dcc, html
-from dash.dependencies import Input, Output, State
-from plotly.subplots import make_subplots
 
-df = pd.read_csv("workouts.csv")
+df = pd.read_csv("CacheCoder_workouts.csv",
+                 converters={'Length (minutes)': lambda x: pd.to_numeric(
+                     x, errors='ignore')}
+                 )
+
+app = Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    suppress_callback_exceptions=True,
+)
 
 ts = "Workout Timestamp"
 
@@ -31,13 +40,14 @@ titleCard = dbc.Card(
     inverse=True,
     style={
         "background-color": "#1A5B92",
-        "color"": "#fff",
+        "color"": "  # fff",
         "width": "55rem",
         "margin-left": "1rem",
         "margin-top": "1rem",
         "margin-bottom": "1rem",
     },
 )
+
 
 def group_data_by_timestamp(
     start_date=df[ts].min(), end_date=df[ts].max(), freq: str = "W"
@@ -62,9 +72,11 @@ def group_data_by_timestamp(
     for tz in ["EST", "EDT", "-04", "-05"]:
         dff.loc[:, ts] = dff[ts].str.replace(f"\({tz}\)", "", regex=True)
 
-    dff.loc[:, ts] = pd.to_datetime(dff[ts], format="%Y-%m-%d %H:%M:%S", errors="coerce")
+    dff.loc[:, ts] = pd.to_datetime(
+        dff[ts], format="%Y-%m-%d %H:%M:%S", errors="coerce")
     return (
-        dff.groupby(pd.Grouper(key=ts, freq=freq))[["Calories Burned", "Total Output"]]
+        dff.groupby(pd.Grouper(key=ts, freq=freq))[
+            ["Calories Burned", "Total Output"]]
         .agg("sum")
         .reset_index()
     )
@@ -122,12 +134,6 @@ def create_timeseries_figure(df: pd.DataFrame, frequency="W") -> go.Figure:
     return line
 
 
-app = Dash(
-    __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP],
-    suppress_callback_exceptions=True,
-)
-
 def create_totals_header_card(df: pd.DataFrame) -> dbc.Card:
     """
     Creates a dbc card with overall totals (rides, minutes spent, miles traveled, calories burned)
@@ -141,23 +147,31 @@ def create_totals_header_card(df: pd.DataFrame) -> dbc.Card:
         dbc.Card: Card with header and totals.
     """
     calorie_field = "Calories Burned"
-    calories = getTotalByAttribute(df, calorie_field)
+    discipline_cycling = "Cycling"
+    length_minutes = "Length (minutes)"
+    distance_miles = "Distance (mi)"
 
-    total_minutes_riding = getTotalMinutesByDiscipline(df, "Cycling")
+    # Convert to float (since float can have a null)
+    df['Length (minutes)'] = pd.to_numeric(
+        df['Length (minutes)'], errors='coerce')
 
-    new_df = df.groupby('Fitness Discipline', as_index=False).agg({'Length (minutes)':'max', 'value':'sum'})
-    #start_date = pd.to_datetime(df['Workout Timestamp']).dt.strftime("%YYYY-%MM-%d")
+    total_riding_calories = getSumByDiscipline(
+        df, discipline_cycling, calorie_field)
+    total_rides = getCountByDiscipline(df, discipline_cycling)
+    total_minutes_riding = getSumByDiscipline(
+        df, discipline_cycling, length_minutes)
+    total_miles_riding = getSumByDiscipline(
+        df, discipline_cycling, distance_miles)
+
+    # start_date = pd.to_datetime(df['Workout Timestamp']).dt.strftime("%YYYY-%MM-%d")
     workout_date = df['Workout Timestamp'].str.split("(")
-    #workout_date = workout_date_time.str.split(" ")
+    # workout_date = workout_date_time.str.split(" ")
     print("workout date")
     print(workout_date)
     min_start_date = workout_date.min()
     max_start_date = workout_date.max()
-    #df.loc[df["type"]=="deposit", "balance"] = df.loc[df["type"]=="deposit"].groupby("exchange", sort=False)["value"].apply(np.cumsum)
 
-    print("total minutes riding")
-    print(total_minutes_riding)
-    #parsed_date = pd.to_datetime(start_date).dt.strftime("%YYYY-%MM-%d")
+    # parsed_date = pd.to_datetime(start_date).dt.strftime("%YYYY-%MM-%d")
 
     return dbc.Card(
         [
@@ -165,7 +179,7 @@ def create_totals_header_card(df: pd.DataFrame) -> dbc.Card:
                 [
                     html.Center(
                         html.H1(
-                            "Totals",
+                            "Ride Totals",
                             className="card-title",
                         )
                     ),
@@ -174,25 +188,24 @@ def create_totals_header_card(df: pd.DataFrame) -> dbc.Card:
                             "({} - {})".format(min_start_date[0], max_start_date[0]), className="card-title"
                         )
                     ),
-                    html.Center(
-                        html.H5(
+                    html.H5(total_minutes_riding, className="card-title"),
+                    html.P("Total Minutes Riding", className="card-text"),
 
-                        )
-                    ),
                 ]
             )
         ],
-    color="#fff",
-    inverse=True,
-    style={
-        "background-color": "#1A5B92",
-        "color"": "#fff",
-        "width": "55rem",
-        "margin-left": "1rem",
-        "margin-top": "1rem",
-        "margin-bottom": "1rem",
-    },
+        color="#fff",
+        inverse=True,
+        style={
+            "background-color": "#1A5B92",
+            "color"": "  # fff",
+            "width": "55rem",
+            "margin-left": "1rem",
+            "margin-top": "1rem",
+            "margin-bottom": "1rem",
+        },
     )
+
 
 def create_calories_and_output_card(df: pd.DataFrame) -> dbc.Card:
     """
@@ -221,10 +234,12 @@ def create_calories_and_output_card(df: pd.DataFrame) -> dbc.Card:
                             id="date-range-picker-2",
                             min_date_allowed=df["Workout Timestamp"].min(),
                             max_date_allowed=df["Workout Timestamp"].max(),
-                            initial_visible_month=df["Workout Timestamp"].min(),
+                            initial_visible_month=df["Workout Timestamp"].min(
+                            ),
                             start_date=df["Workout Timestamp"].min(),
                             end_date=df["Workout Timestamp"].max(),
-                            style={"margin-top": "1rem", "margin-bottom": "1rem"},
+                            style={"margin-top": "1rem",
+                                   "margin-bottom": "1rem"},
                         )
                     ),
                     html.Center(
@@ -266,6 +281,7 @@ def update_weekly_calories_burned_chart(start_date, end_date, frequency):
     grouped_df = group_data_by_timestamp(start_date, end_date, frequency)
     return create_timeseries_figure(grouped_df, frequency)
 
+
 def get_instructor_chart(df: pd.DataFrame) -> px.scatter:
     pie = px.pie(
         df,
@@ -278,6 +294,7 @@ def get_instructor_chart(df: pd.DataFrame) -> px.scatter:
     pie.update_layout(width=1600)
     pie.update_layout(title_x=0.5)
     return pie
+
 
 def get_fitness_discipline_chart(df: pd.DataFrame) -> px.scatter:
     pie = px.pie(
@@ -292,6 +309,7 @@ def get_fitness_discipline_chart(df: pd.DataFrame) -> px.scatter:
     pie.update_layout(title_x=0.5)
     return pie
 
+
 def create_instructor_time_card(workout_df: pd.DataFrame) -> dbc.Card:
     return dbc.Card(
         [
@@ -299,7 +317,7 @@ def create_instructor_time_card(workout_df: pd.DataFrame) -> dbc.Card:
                 [
                     html.Center(
                         html.H1("Instructor Breakdown",
-                        className="card-title")
+                                className="card-title")
                     ),
                     html.P(
                         "This chart shows the percentage of time spent with each instructor.",
@@ -316,13 +334,16 @@ def create_instructor_time_card(workout_df: pd.DataFrame) -> dbc.Card:
         outline=True,
         style={"width": "40rem", "margin-bottom": "1rem"},
     )
+
+
 def create_discipline_card(workout_df: pd.DataFrame) -> dbc.Card:
     return dbc.Card(
         [
             dbc.CardBody(
                 [
                     html.Center(
-                        html.H1("Fitness Discipline Breakdown", className="card-title")
+                        html.H1("Fitness Discipline Breakdown",
+                                className="card-title")
                     ),
                     html.P(
                         "This chart shows the percentage of time spent in minutes for each fitness discipline.",
@@ -380,8 +401,10 @@ def create_instructor_card(df: pd.DataFrame) -> dbc.Card:
         ],
         color="info",
         outline=True,
-        style={"margin-top": "1rem", "margin-left": "1rem", "margin-bottom": "1rem"},
+        style={"margin-top": "1rem", "margin-left": "1rem",
+               "margin-bottom": "1rem"},
     )
+
 
 """
  * Returns the sum of a number value within the objects of an array
@@ -389,6 +412,8 @@ def create_instructor_card(df: pd.DataFrame) -> dbc.Card:
  * @param {string} key Attribute pointing to a number within the objects of an array to get the sum of
  * @return {number} Sum
 """
+
+
 def getTotalByAttribute(df, key):
     total = df[key].sum()
     return total
@@ -400,14 +425,25 @@ def getTotalByAttribute(df, key):
  * @param {string} key Attribute pointing to a number within the objects of an array to get the average of
  * @return {number} Average
 """
+
+
 def getAverageByAttribute(df, key):
     average = df[key].avg()
     return average
 
-def getTotalMinutesByDiscipline(df, key):
+
+def getCountByDiscipline(df, discipline):
+    countByDiscipline = len(df[df['Fitness Discipline']
+                               == discipline])
+    return countByDiscipline
+
+
+def getSumByDiscipline(df, discipline, key):
     print(key)
-    total_minutes = df.loc[df['Fitness Discipline']==key, 'Length (minutes)'].sum(axis=1)
-    return total_minutes
+    sumByDiscipline = df.loc[df['Fitness Discipline']
+                             == discipline, key].sum()
+    return sumByDiscipline
+
 
 app.layout = html.Div(
     children=[
@@ -443,6 +479,5 @@ app.layout = html.Div(
         ),
     ]
 )
-
 
 app.run_server(debug=True)
