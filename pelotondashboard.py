@@ -25,6 +25,10 @@ app = Dash(
 )
 
 ts = "Workout Timestamp"
+discipline_cycling = "Cycling"
+calorie_field = "Calories Burned"
+length_minutes = "Length (minutes)"
+distance_miles = "Distance (mi)"
 
 titleCard = dbc.Card(
     [
@@ -48,91 +52,102 @@ titleCard = dbc.Card(
     },
 )
 
-
-def group_data_by_timestamp(
-    start_date=df[ts].min(), end_date=df[ts].max(), freq: str = "W"
-) -> pd.DataFrame:
-    """
-    Filters dataframe by date range and groups by frequency of week by default.
-    Returns a dataframe with Calories Burned and Total Output summed by the chosen frequency.
-
-    Parameters
-    ----------
-        start_date : date The start date of the range
-        end_date : date The end date of the range
-        freq : str The frequency of the group. Default is weekly.
-
-    Returns
-    -------
-        df : pd.DataFrame The dataframe with the summed columns.
-
-    """
-    dff = df.loc[(start_date <= df[ts]) & (df[ts] <= end_date)]
-
-    for tz in ["EST", "EDT", "-04", "-05"]:
-        dff.loc[:, ts] = dff[ts].str.replace(f"\({tz}\)", "", regex=True)
-
-    dff.loc[:, ts] = pd.to_datetime(
-        dff[ts], format="%Y-%m-%d %H:%M:%S", errors="coerce")
-    return (
-        dff.groupby(pd.Grouper(key=ts, freq=freq))[
-            ["Calories Burned", "Total Output"]]
-        .agg("sum")
-        .reset_index()
+def create_total_rides_card(df: pd.DataFrame) -> dbc.Card:
+    total_rides = getCountByDiscipline(df, discipline_cycling)
+    return dbc.Card(
+        [
+            dbc.CardHeader(html.H5(total_rides, className="card-title")),
+            dbc.CardBody(html.P("Total Rides", className="card-text"))
+        ],
+        className="text-center shadow"
     )
 
-
-print(group_data_by_timestamp())
-
-
-def create_timeseries_figure(df: pd.DataFrame, frequency="W") -> go.Figure:
-    """
-    Creates a timeseries figure with two subplots. The first subplot graphs
-    the Total Output for the week. The second subplot graphs the Calories Burned
-    for the week.
-
-    Parameters
-    ----------
-        df : pd.DataFrame The dataframe to be plotted.
-        frequency : str The frequency of the group. Default is weekly.
-
-    Returns
-    -------
-        go.Figure: The figure to be plotted.
-    """
-    switcher = {"D": "Day", "W": "Week", "M": "Month"}
-    freq = switcher.get(frequency, "Week")
-    line = make_subplots(specs=[[{"secondary_y": True}]])
-    line.add_trace(
-        go.Scatter(
-            x=df["Workout Timestamp"],
-            y=df["Calories Burned"],
-            marker=dict(size=10, color="MediumPurple"),
-            name="Total Calories",
-        ),
-        secondary_y=False,
-    )
-    line.add_trace(
-        go.Scatter(
-            x=df["Workout Timestamp"],
-            y=df["Total Output"],
-            marker=dict(size=10, color="MediumSeaGreen"),
-            name="Total Output",
-        ),
-        secondary_y=True,
+def create_total_riding_calories_card(df: pd.DataFrame) -> dbc.Card:
+    total_riding_calories = getSumByDiscipline(
+        df, discipline_cycling, calorie_field)
+    return dbc.Card(
+        [
+            dbc.CardHeader(html.H5(total_riding_calories, className="card-title")),
+            dbc.CardBody(html.P("Total Calories Burned Riding", className="card-text"))
+        ],
+        className="text-center shadow"
     )
 
-    line.update_layout(
-        title=f"Calories and Total Output per {freq}",
-        title_x=0.5,
-        yaxis_title="Calories Burned",
+def create_total_minutes_riding_card(df: pd.DataFrame) -> dbc.Card:
+    # Convert to float (since float can have a null)
+    df['Length (minutes)'] = pd.to_numeric(
+        df['Length (minutes)'], errors='coerce')
+    total_minutes_riding = getSumByDiscipline(
+        df, discipline_cycling, length_minutes)
+    return dbc.Card(
+        [
+            dbc.CardHeader(html.H5(total_minutes_riding, className="card-title")),
+            dbc.CardBody(html.P("Total Minutes Riding", className="card-text"))
+        ],
+        className="text-center shadow"
     )
 
-    line.update_yaxes(title_text="Total Output", secondary_y=True)
-    line.update_yaxes(title_text="Calories Burned", secondary_y=False)
-    line.update_xaxes(title=f"{freq}")
-    return line
+def create_total_miles_riding_card(df: pd.DataFrame) -> dbc.Card:
+    total_miles_riding = getSumByDiscipline(
+        df, discipline_cycling, distance_miles)
+    return dbc.Card(
+        [
+            dbc.CardHeader(html.H5(total_miles_riding, className="card-title")),
+            dbc.CardBody(html.P("Total Miles Riding", className="card-text"))
+        ],
+        className="text-center shadow"
+    )
 
+def create_totals(df: pd.DataFrame):
+
+
+    # Convert to float (since float can have a null)
+    df['Length (minutes)'] = pd.to_numeric(
+        df['Length (minutes)'], errors='coerce')
+
+    total_riding_calories = getSumByDiscipline(
+        df, discipline_cycling, calorie_field)
+    total_rides = getCountByDiscipline(df, discipline_cycling)
+    total_minutes_riding = getSumByDiscipline(
+        df, discipline_cycling, length_minutes)
+    total_miles_riding = getSumByDiscipline(
+        df, discipline_cycling, distance_miles)
+    totalsCardGroup = dbc.CardGroup(
+        [
+            dbc.Card(
+                [
+                    dbc.CardHeader(html.H5(total_rides, className="card-title")),
+                    dbc.CardBody(html.P("Total Rides", className="card-text"))
+                ],
+                className="text-center shadow"
+            ),
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        html.H5(total_minutes_riding, className="card-title"),
+                        html.P("Total Minutes Riding", className="card-text")
+                    ]
+                )
+            ),
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        html.H5(total_miles_riding, className="card-title"),
+                        html.P("Total Miles Riding", className="card-text")
+                    ]
+                )
+            ),
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        html.H5(total_riding_calories, className="card-title"),
+                        html.P("Total Calories Burned Riding", className="card-text")
+                    ]
+                )
+            ),
+        ]
+    )
+    return totalsCardGroup
 
 def create_totals_header_card(df: pd.DataFrame) -> dbc.Card:
     """
@@ -206,6 +221,89 @@ def create_totals_header_card(df: pd.DataFrame) -> dbc.Card:
         },
     )
 
+def group_data_by_timestamp(
+    start_date=df[ts].min(), end_date=df[ts].max(), freq: str = "W"
+) -> pd.DataFrame:
+    """
+    Filters dataframe by date range and groups by frequency of week by default.
+    Returns a dataframe with Calories Burned and Total Output summed by the chosen frequency.
+
+    Parameters
+    ----------
+        start_date : date The start date of the range
+        end_date : date The end date of the range
+        freq : str The frequency of the group. Default is weekly.
+
+    Returns
+    -------
+        df : pd.DataFrame The dataframe with the summed columns.
+
+    """
+    dff = df.loc[(start_date <= df[ts]) & (df[ts] <= end_date)]
+
+    for tz in ["EST", "EDT", "-04", "-05"]:
+        dff.loc[:, ts] = dff[ts].str.replace(f"\({tz}\)", "", regex=True)
+
+    dff.loc[:, ts] = pd.to_datetime(
+        dff[ts], format="%Y-%m-%d %H:%M:%S", errors="coerce")
+    return (
+        dff.groupby(pd.Grouper(key=ts, freq=freq))[
+            ["Calories Burned", "Total Output"]]
+        .agg("sum")
+        .reset_index()
+    )
+
+
+#print(group_data_by_timestamp())
+
+
+def create_timeseries_figure(df: pd.DataFrame, frequency="W") -> go.Figure:
+    """
+    Creates a timeseries figure with two subplots. The first subplot graphs
+    the Total Output for the week. The second subplot graphs the Calories Burned
+    for the week.
+
+    Parameters
+    ----------
+        df : pd.DataFrame The dataframe to be plotted.
+        frequency : str The frequency of the group. Default is weekly.
+
+    Returns
+    -------
+        go.Figure: The figure to be plotted.
+    """
+    switcher = {"D": "Day", "W": "Week", "M": "Month"}
+    freq = switcher.get(frequency, "Week")
+    line = make_subplots(specs=[[{"secondary_y": True}]])
+    line.add_trace(
+        go.Scatter(
+            x=df["Workout Timestamp"],
+            y=df["Calories Burned"],
+            marker=dict(size=10, color="MediumPurple"),
+            name="Total Calories",
+        ),
+        secondary_y=False,
+    )
+    line.add_trace(
+        go.Scatter(
+            x=df["Workout Timestamp"],
+            y=df["Total Output"],
+            marker=dict(size=10, color="MediumSeaGreen"),
+            name="Total Output",
+        ),
+        secondary_y=True,
+    )
+
+    line.update_layout(
+        title=f"Calories and Total Output per {freq}",
+        title_x=0.5,
+        yaxis_title="Calories Burned",
+    )
+
+    line.update_yaxes(title_text="Total Output", secondary_y=True)
+    line.update_yaxes(title_text="Calories Burned", secondary_y=False)
+    line.update_xaxes(title=f"{freq}")
+    return line
 
 def create_calories_and_output_card(df: pd.DataFrame) -> dbc.Card:
     """
@@ -456,10 +554,13 @@ app.layout = html.Div(
         ),
         dbc.Row(
             [
-                html.Center(create_totals_header_card(df))
+                #html.Center(create_totals_header_card(df))
+                dbc.Col(create_total_rides_card(df)),
+                dbc.Col(create_total_minutes_riding_card(df)),
+                dbc.Col(create_total_miles_riding_card(df)),
+                dbc.Col(create_total_riding_calories_card(df))
             ],
-            justify="center",
-            style={"margin-left": "0.5rem"},
+            style={"margin-bottom": "1.5rem", "margin-left": "0.5rem"},
         ),
         dbc.Row(
             [
