@@ -81,6 +81,6 @@ class PelotonWorkouts:
           out_file.write(content)
 
 if __name__ == '__main__':
-    username = 'public.thomson@gmail.com'
-    password = 'Tinbed44!'
+    username = 'blah'
+    password = 'blah'
     conn = PelotonWorkouts(username, password)
